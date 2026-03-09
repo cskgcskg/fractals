@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fractal Explorer</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&family=Syne:wght@400;600;700;800&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&display=swap');
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{overflow:hidden;background:#000;font-family:'JetBrains Mono',monospace;color:#e0e0e0;cursor:grab;user-select:none}
+  body.dragging{cursor:grabbing}
+  canvas{display:block;width:100vw;height:100vh;position:absolute;top:0;left:0}
+  #hud{position:fixed;top:0;left:0;right:0;bottom:0;pointer-events:none;z-index:10}
+  #mode-tabs{position:absolute;top:16px;left:50%;transform:translateX(-50%);pointer-events:all;display:flex;gap:2px;background:rgba(0,0,0,0.6);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:4px;z-index:2}
+  .mode-tab{padding:7px 16px;font-family:'Syne',sans-serif;font-weight:600;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;border:none;background:transparent;color:rgba(255,255,255,0.3);border-radius:7px;cursor:pointer;transition:all .25s;white-space:nowrap}
+  .mode-tab:hover{color:rgba(255,255,255,0.6)}
+  .mode-tab.active{background:rgba(255,255,255,0.1);color:#fff;box-shadow:0 0 16px rgba(255,255,255,0.04)}
+  #title-bar{position:absolute;top:60px;left:28px;display:flex;flex-direction:column;gap:3px}
+  #title-bar h1{font-family:'Syne',sans-serif;font-weight:700;font-size:15px;letter-spacing:3px;text-transform:uppercase;color:#fff;text-shadow:0 0 20px rgba(255,255,255,0.15)}
+  #title-bar .sub{font-size:9px;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,0.3)}
+  .controls-panel{position:absolute;top:60px;right:28px;pointer-events:all;display:flex;flex-direction:column;gap:9px;background:rgba(0,0,0,0.55);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:16px 18px;min-width:210px;max-height:calc(100vh - 120px);overflow-y:auto}
+  .controls-panel.hidden{display:none}
+  .hidden{display:none!important}
+  .controls-panel::-webkit-scrollbar{width:3px}
+  .controls-panel::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:2px}
+  .ctrl-group{display:flex;flex-direction:column;gap:5px}
+  .ctrl-label{font-size:9px;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,0.35)}
+  .ctrl-row{display:flex;gap:5px}
+  .ctrl-btn{flex:1;padding:7px 5px;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:500;letter-spacing:1px;text-transform:uppercase;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.03);color:rgba(255,255,255,0.5);border-radius:6px;cursor:pointer;transition:all .2s;text-align:center}
+  .ctrl-btn:hover{background:rgba(255,255,255,0.08);color:#fff;border-color:rgba(255,255,255,0.2)}
+  .ctrl-btn.active{background:rgba(255,255,255,0.12);color:#fff;border-color:rgba(255,255,255,0.3);box-shadow:0 0 12px rgba(255,255,255,0.05)}
+  .slider-wrap{display:flex;align-items:center;gap:10px}
+  .slider-wrap input[type="range"]{flex:1;-webkit-appearance:none;appearance:none;height:3px;background:rgba(255,255,255,0.12);border-radius:2px;outline:none}
+  .slider-wrap input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;border-radius:50%;background:#fff;cursor:pointer;box-shadow:0 0 6px rgba(255,255,255,0.3)}
+  .slider-val{font-size:11px;color:rgba(255,255,255,0.6);min-width:32px;text-align:right}
+  #info-bar{position:absolute;bottom:22px;left:28px;display:flex;gap:22px}
+  .info-item{display:flex;flex-direction:column;gap:2px}
+  .info-item .label{font-size:9px;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,0.25)}
+  .info-item .value{font-size:12px;color:rgba(255,255,255,0.6)}
+  #help{position:absolute;bottom:22px;right:28px;font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,0.2);line-height:1.8;text-align:right}
+  .divider{height:1px;background:rgba(255,255,255,0.06);margin:2px 0}
+  #coord-display{position:absolute;bottom:22px;left:50%;transform:translateX(-50%);font-size:10px;letter-spacing:1px;color:rgba(255,255,255,0.25);font-family:'JetBrains Mono',monospace}
+  #learn-info{position:absolute;top:60px;left:28px;pointer-events:all;width:380px;max-height:calc(100vh - 120px);overflow-y:auto;background:rgba(0,0,0,0.7);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border:1px solid rgba(255,255,255,0.06);border-radius:14px;padding:24px 22px}
+  #learn-info.hidden{display:none}
+  #learn-info::-webkit-scrollbar{width:3px}
+  #learn-info::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:2px}
+  #learn-info h2{font-family:'Syne',sans-serif;font-weight:700;font-size:18px;color:#fff;margin-bottom:6px;letter-spacing:1px}
+  #learn-info h3{font-family:'Syne',sans-serif;font-weight:600;font-size:12px;color:rgba(255,255,255,0.7);margin:14px 0 6px;letter-spacing:2px;text-transform:uppercase}
+  #learn-info p{font-family:'Source Serif 4',serif;font-size:13.5px;line-height:1.7;color:rgba(255,255,255,0.6);margin-bottom:10px}
+  #learn-info .nature-tag{display:inline-block;padding:3px 10px;border-radius:20px;font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:1.5px;text-transform:uppercase;background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.4);margin:2px 3px 2px 0}
+  #learn-info .highlight{color:rgba(255,255,255,0.85);font-weight:600}
+  #learn-info .fact-box{background:rgba(255,255,255,0.04);border-left:2px solid rgba(255,255,255,0.15);padding:10px 14px;margin:10px 0;border-radius:0 8px 8px 0}
+  #learn-info .fact-box p{margin-bottom:0;font-size:12.5px;color:rgba(255,255,255,0.55)}
+  #learn-info .fact-box .fact-label{font-family:'JetBrains Mono',monospace;font-size:8px;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,0.3);margin-bottom:4px;display:block}
+  #learn-info .analogy{display:flex;align-items:center;gap:10px;margin:8px 0;padding:8px 12px;background:rgba(255,255,255,0.03);border-radius:8px}
+  #learn-info .analogy-icon{font-size:20px;flex-shrink:0}
+  #learn-info .analogy p{margin:0;font-size:12px}
+  .eq-display{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:14px 16px;text-align:center}
+  .eq-main{font-family:'Source Serif 4',serif;font-size:18px;color:rgba(255,255,255,0.85);font-style:italic;letter-spacing:1px;margin-bottom:8px}
+  .eq-detail{font-family:'JetBrains Mono',monospace;font-size:9.5px;color:rgba(255,255,255,0.35);line-height:1.8;letter-spacing:.3px}
+  .eq-detail .eq-val{color:rgba(255,255,255,0.7);font-weight:500}
+</style>
+</head>
+<body>
+<canvas id="glcanvas"></canvas>
+<div id="hud">
+  <div id="title-bar"><h1>Fractal Explorer</h1><span class="sub" id="subtitle">2D Complex Plane</span></div>
+  <div id="mode-tabs">
+    <button class="mode-tab active" data-mode="2d">2D</button>
+    <button class="mode-tab" data-mode="3d">3D</button>
+    <button class="mode-tab" data-mode="geo">Geometry</button>
+    <button class="mode-tab" data-mode="learn">Learn</button>
+    <button class="mode-tab" data-mode="eq">Equations</button>
+  </div>
+
+  <!-- 2D -->
+  <div id="controls-2d" class="controls-panel">
+    <div class="ctrl-group"><span class="ctrl-label">Fractal</span>
+      <div class="ctrl-row"><button class="ctrl-btn active" data-fractal2d="0">Mandelbrot</button><button class="ctrl-btn" data-fractal2d="1">Julia</button></div>
+      <div class="ctrl-row"><button class="ctrl-btn" data-fractal2d="2">Burning Ship</button><button class="ctrl-btn" data-fractal2d="3">Tricorn</button></div>
+    </div><div class="divider"></div>
+    <div class="ctrl-group"><span class="ctrl-label">Iterations <span class="slider-val" id="iter2dVal">256</span></span><div class="slider-wrap"><input type="range" id="iter2d" min="64" max="2000" step="16" value="256"></div></div>
+    <div class="ctrl-group"><span class="ctrl-label">Power <span class="slider-val" id="power2dVal">2</span></span><div class="slider-wrap"><input type="range" id="power2d" min="2" max="8" step="1" value="2"></div></div>
+    <div class="divider"></div>
+    <div class="ctrl-group"><span class="ctrl-label">Color</span>
+      <div class="ctrl-row"><button class="ctrl-btn active" data-color2d="0">Inferno</button><button class="ctrl-btn" data-color2d="1">Electric</button></div>
+      <div class="ctrl-row"><button class="ctrl-btn" data-color2d="2">Acid</button><button class="ctrl-btn" data-color2d="3">Frost</button></div>
+    </div><div class="divider"></div>
+    <div class="ctrl-group"><button class="ctrl-btn" id="resetBtn2d" style="background:rgba(255,255,255,0.06)">Reset View</button></div>
+  </div>
+
+  <!-- 3D -->
+  <div id="controls-3d" class="controls-panel hidden">
+    <div class="ctrl-group"><span class="ctrl-label">Fractal</span>
+      <div class="ctrl-row"><button class="ctrl-btn active" data-fractal3d="0">Mandelbulb</button><button class="ctrl-btn" data-fractal3d="1">Julia</button></div>
+      <div class="ctrl-row"><button class="ctrl-btn" data-fractal3d="2">Menger</button><button class="ctrl-btn" data-fractal3d="3">Sierpinski</button></div>
+    </div><div class="divider"></div>
+    <div class="ctrl-group"><span class="ctrl-label">Power <span class="slider-val" id="powerVal">8</span></span><div class="slider-wrap"><input type="range" id="power3d" min="2" max="16" step="0.5" value="8"></div></div>
+    <div class="ctrl-group"><span class="ctrl-label">Iterations <span class="slider-val" id="iterVal">8</span></span><div class="slider-wrap"><input type="range" id="iter3d" min="2" max="20" step="1" value="8"></div></div>
+    <div class="ctrl-group"><span class="ctrl-label">Detail <span class="slider-val" id="detailVal">1.0</span></span><div class="slider-wrap"><input type="range" id="detail3d" min="0.3" max="2.0" step="0.1" value="1.0"></div></div>
+    <div class="divider"></div>
+    <div class="ctrl-group"><span class="ctrl-label">Color</span>
+      <div class="ctrl-row"><button class="ctrl-btn active" data-color3d="0">Inferno</button><button class="ctrl-btn" data-color3d="1">Electric</button></div>
+      <div class="ctrl-row"><button class="ctrl-btn" data-color3d="2">Acid</button><button class="ctrl-btn" data-color3d="3">Frost</button></div>
+    </div>
+  </div>
+
+  <!-- Geometry -->
+  <div id="controls-geo" class="controls-panel hidden">
+    <div class="ctrl-group"><span class="ctrl-label">Pattern</span>
+      <div class="ctrl-row"><button class="ctrl-btn active" data-geo="0">Kaleidoscope</button><button class="ctrl-btn" data-geo="1">Spirograph</button></div>
+      <div class="ctrl-row"><button class="ctrl-btn" data-geo="2">Penrose</button><button class="ctrl-btn" data-geo="3">Apollonian</button></div>
+    </div><div class="divider"></div>
+    <div class="ctrl-group"><span class="ctrl-label">Symmetry <span class="slider-val" id="symVal">6</span></span><div class="slider-wrap"><input type="range" id="symmetry" min="3" max="12" step="1" value="6"></div></div>
+    <div class="ctrl-group"><span class="ctrl-label">Complexity <span class="slider-val" id="compVal">5</span></span><div class="slider-wrap"><input type="range" id="complexity" min="1" max="12" step="1" value="5"></div></div>
+    <div class="divider"></div>
+    <div class="ctrl-group"><span class="ctrl-label">Color</span>
+      <div class="ctrl-row"><button class="ctrl-btn active" data-colorgeo="0">Inferno</button><button class="ctrl-btn" data-colorgeo="1">Electric</button></div>
+      <div class="ctrl-row"><button class="ctrl-btn" data-colorgeo="2">Acid</button><button class="ctrl-btn" data-colorgeo="3">Frost</button></div>
+    </div><div class="divider"></div>
+    <div class="ctrl-group"><button class="ctrl-btn" id="resetBtnGeo" style="background:rgba(255,255,255,0.06)">Reset View</button></div>
+  </div>
+
+  <!-- Learn -->
+  <div id="controls-learn" class="controls-panel hidden">
+    <div class="ctrl-group"><span class="ctrl-label">Topic</span>
+      <div class="ctrl-row"><button class="ctrl-btn active" data-learn="0">Mountains</button><button class="ctrl-btn" data-learn="1">Ferns</button></div>
+      <div class="ctrl-row"><button class="ctrl-btn" data-learn="2">Lightning</button><button class="ctrl-btn" data-learn="3">Cells</button></div>
+      <div class="ctrl-row"><button class="ctrl-btn" data-learn="4">Forest</button><button class="ctrl-btn" data-learn="5">Lungs</button></div>
+      <div class="ctrl-row"><button class="ctrl-btn" data-learn="6">Carbon</button></div>
+    </div><div class="divider"></div>
+    <div class="ctrl-group"><span class="ctrl-label">Color</span>
+      <div class="ctrl-row"><button class="ctrl-btn active" data-colorlearn="0">Natural</button><button class="ctrl-btn" data-colorlearn="1">X-Ray</button></div>
+    </div><div class="divider"></div>
+    <div class="ctrl-group"><button class="ctrl-btn" id="resetBtnLearn" style="background:rgba(255,255,255,0.06)">Reset View</button></div>
+  </div>
+
+  <!-- Equations -->
+  <div id="controls-eq" class="controls-panel hidden">
+    <div id="eqDisplay" class="eq-display">
+      <div class="eq-main">z<sub>n+1</sub> = z<sub>n</sub>² + c</div>
+      <div class="eq-detail" id="eqDetail">z₀ = pixel coordinate</div>
+      <div class="eq-detail" id="eqCval">c = pixel coordinate (re, im)</div>
+      <div class="eq-detail" id="eqEscape">escape: |z| > 4</div>
+      <div class="eq-detail" id="eqIterInfo">max 200 iterations</div>
+    </div>
+    <div class="divider"></div>
+    <div class="ctrl-group"><span class="ctrl-label">Mode</span>
+      <div class="ctrl-row"><button class="ctrl-btn active" data-eqmode="0">Mandelbrot</button><button class="ctrl-btn" data-eqmode="1">Julia</button></div>
+    </div><div class="divider"></div>
+    <div class="ctrl-group"><span class="ctrl-label">Power (n) <span class="slider-val" id="eqPowerVal">2.0</span></span><div class="slider-wrap"><input type="range" id="eqPower" min="1" max="8" step="0.1" value="2"></div></div>
+    <div class="ctrl-group"><span class="ctrl-label">c Real <span class="slider-val" id="eqCrVal">-0.70</span></span><div class="slider-wrap"><input type="range" id="eqCr" min="-2" max="2" step="0.005" value="-0.7"></div></div>
+    <div class="ctrl-group"><span class="ctrl-label">c Imaginary <span class="slider-val" id="eqCiVal">0.27</span></span><div class="slider-wrap"><input type="range" id="eqCi" min="-2" max="2" step="0.005" value="0.27"></div></div>
+    <div class="ctrl-group"><span class="ctrl-label">Escape Radius <span class="slider-val" id="eqEscVal">4</span></span><div class="slider-wrap"><input type="range" id="eqEsc" min="2" max="50" step="1" value="4"></div></div>
+    <div class="ctrl-group"><span class="ctrl-label">Iterations <span class="slider-val" id="eqIterVal">200</span></span><div class="slider-wrap"><input type="range" id="eqIter" min="32" max="1000" step="8" value="200"></div></div>
+    <div class="divider"></div>
+    <div class="ctrl-group"><span class="ctrl-label">Color</span>
+      <div class="ctrl-row"><button class="ctrl-btn active" data-coloreq="0">Inferno</button><button class="ctrl-btn" data-coloreq="1">Electric</button></div>
+      <div class="ctrl-row"><button class="ctrl-btn" data-coloreq="2">Acid</button><button class="ctrl-btn" data-coloreq="3">Frost</button></div>
+    </div><div class="divider"></div>
+    <div class="ctrl-group"><button class="ctrl-btn" id="resetBtnEq" style="background:rgba(255,255,255,0.06)">Reset View</button></div>
+  </div>
+
+  <div id="learn-info" class="hidden"></div>
+  <div id="info-bar">
+    <div class="info-item"><span class="label">FPS</span><span class="value" id="fps">--</span></div>
+    <div class="info-item"><span class="label">Zoom</span><span class="value" id="zoomVal">1.0x</span></div>
+  </div>
+  <div id="coord-display"></div>
+  <div id="help">Drag to pan · Scroll to zoom</div>
+</div>
+
+<script>
+const canvas=document.getElementById('glcanvas');
+const gl=canvas.getContext('webgl',{antialias:false,preserveDrawingBuffer:false});
+if(!gl) alert('WebGL not supported');
+let activeMode='2d', isDragging=false, isPanning=false, lastMX=0, lastMY=0, needsRedraw=true;
+
+let f2d={type:0,color:0,iter:256,power:2,cx:-0.5,cy:0,zoom:0.003,juliaR:-0.7269,juliaI:0.1889};
+let f3d={type:0,color:0,power:8,iter:8,detail:1,theta:0.5,phi:0.4,dist:3.5,target:[0,0,0],panX:0,panY:0};
+let geo={type:0,color:0,sym:6,comp:5,cx:0,cy:0,zoom:0.004};
+let learn={type:0,color:0,cx:0,cy:0,zoom:0.005};
+let eq={mode:0,color:0,power:2,cr:-0.7,ci:0.27,esc:4,iter:200,cx:-0.5,cy:0,zoom:0.003};
+
+const PALETTE=`
+vec3 palette(float t,int s){float t2=fract(t);vec3 c;
+if(s==0){c=mix(vec3(0,0,.02),vec3(.55,0,.15),smoothstep(0.,.2,t2));c=mix(c,vec3(.9,.15,0),smoothstep(.2,.4,t2));c=mix(c,vec3(1,.55,0),smoothstep(.4,.6,t2));c=mix(c,vec3(1,.9,.3),smoothstep(.6,.8,t2));c=mix(c,vec3(1,1,.85),smoothstep(.8,1.,t2));}
+else if(s==1){c=mix(vec3(0,0,.08),vec3(0,.08,.55),smoothstep(0.,.2,t2));c=mix(c,vec3(0,.35,1),smoothstep(.2,.4,t2));c=mix(c,vec3(0,.75,1),smoothstep(.4,.6,t2));c=mix(c,vec3(.4,1,1),smoothstep(.6,.8,t2));c=mix(c,vec3(.9,1,1),smoothstep(.8,1.,t2));}
+else if(s==2){c=mix(vec3(.1,0,.2),vec3(.6,0,.5),smoothstep(0.,.2,t2));c=mix(c,vec3(1,.05,.4),smoothstep(.2,.35,t2));c=mix(c,vec3(.1,1,.2),smoothstep(.35,.55,t2));c=mix(c,vec3(.95,1,.1),smoothstep(.55,.75,t2));c=mix(c,vec3(.3,0,.7),smoothstep(.75,1.,t2));}
+else{c=mix(vec3(.01,.02,.08),vec3(.1,.2,.5),smoothstep(0.,.25,t2));c=mix(c,vec3(.4,.6,.9),smoothstep(.25,.5,t2));c=mix(c,vec3(.75,.85,1),smoothstep(.5,.75,t2));c=mix(c,vec3(.95,.9,1),smoothstep(.75,1.,t2));}
+return c;}`;
+const VIG=`vec2 vig=gl_FragCoord.xy/u_res;col*=.5+.5*pow(16.*vig.x*vig.y*(1.-vig.x)*(1.-vig.y),.2);`;
+const V=`attribute vec2 a_pos;void main(){gl_Position=vec4(a_pos,0,1);}`;
+
+// ═══ 2D SHADER ═══
+const F2D=`precision highp float;uniform vec2 u_res;uniform float u_cx,u_cy,u_zoom;uniform int u_type,u_color,u_maxIter,u_power;uniform float u_juliaR,u_juliaI;
+${PALETTE}
+void main(){vec2 uv=gl_FragCoord.xy;float re=u_cx+(uv.x-u_res.x*.5)*u_zoom;float im=u_cy+(uv.y-u_res.y*.5)*u_zoom;
+float zr,zi,cr,ci,tr,ti;if(u_type==1){zr=re;zi=im;cr=u_juliaR;ci=u_juliaI;}else{cr=re;ci=im;zr=0.;zi=0.;}
+float iter=0.,maxI=float(u_maxIter);for(int i=0;i<4000;i++){if(float(i)>=maxI)break;if(u_type==2){zr=abs(zr);zi=abs(zi);}if(u_type==3){zi=-zi;}
+if(u_power==2){tr=zr*zr-zi*zi+cr;ti=2.*zr*zi+ci;}else if(u_power==3){tr=zr*zr*zr-3.*zr*zi*zi+cr;ti=3.*zr*zr*zi-zi*zi*zi+ci;}
+else{float r=sqrt(zr*zr+zi*zi);float a=atan(zi,zr);float pw=float(u_power);float rn=pow(r,pw);tr=rn*cos(pw*a)+cr;ti=rn*sin(pw*a)+ci;}
+zr=tr;zi=ti;if(zr*zr+zi*zi>256.)break;iter+=1.;}
+vec3 col;if(iter>=maxI-1.){col=vec3(0);}else{float log_zn=log(zr*zr+zi*zi)*.5;float nu=log(log_zn/log(2.))/log(float(u_power));float si=iter+1.-nu;float t=si*.015;col=mix(palette(t,u_color),palette(t+.015,u_color),fract(si));col*=1.15;}
+${VIG}gl_FragColor=vec4(col,1);}`;
+
+// ═══ EQUATIONS SHADER ═══
+const F_EQ=`precision highp float;uniform vec2 u_res;uniform float u_cx,u_cy,u_zoom;uniform int u_mode,u_color,u_maxIter;uniform float u_power,u_cr,u_ci,u_esc;
+${PALETTE}
+void main(){vec2 uv=gl_FragCoord.xy;float re=u_cx+(uv.x-u_res.x*.5)*u_zoom;float im=u_cy+(uv.y-u_res.y*.5)*u_zoom;
+float zr,zi,cr,ci;
+if(u_mode==1){zr=re;zi=im;cr=u_cr;ci=u_ci;}else{cr=re;ci=im;zr=0.;zi=0.;}
+float iter=0.,maxI=float(u_maxIter);float esc2=u_esc*u_esc;
+float trap=1e10;
+for(int i=0;i<4000;i++){if(float(i)>=maxI)break;
+float r=sqrt(zr*zr+zi*zi);float a=atan(zi,zr);float rn=pow(r,u_power);
+float tr=rn*cos(u_power*a)+cr;float ti=rn*sin(u_power*a)+ci;
+zr=tr;zi=ti;
+trap=min(trap,abs(zr)+abs(zi));
+if(zr*zr+zi*zi>esc2)break;iter+=1.;}
+vec3 col;if(iter>=maxI-1.){col=vec3(0);}else{
+float log_zn=log(zr*zr+zi*zi)*.5;float nu=log(log_zn/log(u_esc))/log(u_power);float si=max(iter+1.-nu,0.);
+float t1=si*.02;float t2=trap*.4;
+vec3 c1=palette(t1,u_color);vec3 c2=palette(t2+.3,u_color);
+col=mix(c1,c2,.3+.2*sin(si*.5));col*=1.2;}
+${VIG}gl_FragColor=vec4(clamp(col,0.,1.),1);}`;
+
+// ═══ 3D SHADER ═══
+const F3D=`precision highp float;uniform vec2 u_res;uniform float u_time;uniform vec3 u_camPos,u_camTarget,u_camUp;uniform int u_fractal,u_color;uniform float u_power,u_detail,u_camDist;uniform int u_iter;
+#define MS 200
+#define MD 25.
+${PALETTE}
+vec2 mandelbulb(vec3 p){vec3 z=p;float dr=1.,r=0.,pw=u_power,trap=1e10;for(int i=0;i<24;i++){if(i>=u_iter)break;r=length(z);if(r>2.)break;trap=min(trap,length(z.xz));float th=acos(clamp(z.z/r,-1.,1.));float ph=atan(z.y,z.x);dr=pow(r,pw-1.)*pw*dr+1.;float zr=pow(r,pw);z=zr*vec3(sin(th*pw)*cos(ph*pw),sin(th*pw)*sin(ph*pw),cos(th*pw));z+=p;}return vec2(.5*log(r)*r/dr,trap);}
+vec2 julia3d(vec3 p){vec4 c=vec4(-.2,.6,.2,-.5);vec4 z=vec4(p,0);float md2=1.,mz2=dot(z,z),trap=1e10;for(int i=0;i<24;i++){if(i>=u_iter)break;md2*=4.*mz2;trap=min(trap,dot(z.xyz,z.xyz));z=vec4(z.x*z.x-z.y*z.y-z.z*z.z-z.w*z.w,2.*z.x*z.y,2.*z.x*z.z,2.*z.x*z.w)+c;mz2=dot(z,z);if(mz2>4.)break;}return vec2(.25*sqrt(mz2/md2)*log(mz2),trap);}
+vec2 mengerSponge(vec3 p){float d=max(max(abs(p.x),abs(p.y)),abs(p.z))-1.;float s=1.,trap=length(p);for(int i=0;i<24;i++){if(i>=u_iter)break;vec3 a=mod(p*s,2.)-1.;s*=3.;vec3 r=abs(1.-3.*abs(a));trap=min(trap,length(a));float c=(min(max(r.x,r.y),min(max(r.y,r.z),max(r.z,r.x)))-1.)/s;d=max(d,c);}return vec2(d,trap);}
+vec2 sierpinski(vec3 p){float s=2.,off=1.,trap=length(p);for(int i=0;i<24;i++){if(i>=u_iter)break;if(p.x+p.y<0.)p.xy=-p.yx;if(p.x+p.z<0.)p.xz=-p.zx;if(p.y+p.z<0.)p.yz=-p.zy;p=p*s-off*(s-1.);trap=min(trap,length(p)/s);}return vec2(length(p)*pow(s,-float(u_iter)),trap);}
+vec2 sceneDE(vec3 p){vec2 d;if(u_fractal==0)d=mandelbulb(p);else if(u_fractal==1)d=julia3d(p);else if(u_fractal==2)d=mengerSponge(p);else d=sierpinski(p);d.x*=u_detail;return d;}
+float sceneDist(vec3 p){return sceneDE(p).x;}
+vec3 getNormal(vec3 p){float e=max(u_camDist*.00008,1e-6);return normalize(vec3(sceneDist(p+vec3(e,0,0))-sceneDist(p-vec3(e,0,0)),sceneDist(p+vec3(0,e,0))-sceneDist(p-vec3(0,e,0)),sceneDist(p+vec3(0,0,e))-sceneDist(p-vec3(0,0,e))));}
+float softSh(vec3 ro,vec3 rd,float mi,float ma,float k){float r=1.,t=mi;for(int i=0;i<48;i++){float h=sceneDist(ro+rd*t);r=min(r,k*h/t);t+=clamp(h,u_camDist*.0005,u_camDist*.08);if(h<u_camDist*.00005||t>ma)break;}return clamp(r,0.,1.);}
+float calcAO(vec3 p,vec3 n){float o=0.,s=1.,sc=u_camDist*.04;for(int i=0;i<5;i++){float h=sc*(.1+.9*float(i)/4.);o+=(h-sceneDist(p+h*n))*s;s*=.7;}return clamp(1.-2.5*o/sc,0.,1.);}
+float g_trap;
+vec4 raymarch(vec3 ro,vec3 rd){float st=max(u_camDist*.00012,3e-7);float t=0.,minD=1e10;g_trap=0.;for(int i=0;i<MS;i++){vec3 p=ro+rd*t;vec2 de=sceneDE(p);minD=min(minD,de.x);if(de.x<st){g_trap=de.y;return vec4(t,float(i),minD,1.);}t+=de.x*.6;if(t>MD)break;}return vec4(t,0.,minD,0.);}
+void main(){vec2 uv=(gl_FragCoord.xy-.5*u_res)/u_res.y;vec3 ro=u_camPos,ww=normalize(u_camTarget-ro),uu=normalize(cross(ww,u_camUp)),vv=cross(uu,ww);vec3 rd=normalize(uv.x*uu+uv.y*vv+1.8*ww);
+vec4 res=raymarch(ro,rd);vec3 col;
+if(res.w>.5){vec3 p=ro+rd*res.x,n=getNormal(p);vec3 L1=normalize(vec3(1,1.2,.8)),L2=normalize(vec3(-.6,.4,-1));float d1=max(dot(n,L1),0.),d2=max(dot(n,L2),0.),sp=pow(max(dot(reflect(-L1,n),-rd),0.),20.);float ao=calcAO(p,n),sOff=u_camDist*.003,sh=softSh(p+n*sOff,L1,sOff,u_camDist*2.,10.);float rim=pow(1.-max(dot(n,-rd),0.),3.);
+float trapN=clamp(g_trap,0.,2.)*.5,ci=trapN*1.8+(res.y/float(MS))*2.5+length(p)*.15;vec3 mc=palette(ci,u_color),mc2=palette(ci*.6+.45,u_color);mc=mix(mc,mc2,.3+.15*sin(trapN*10.));mc=mc*1.2+.05;
+col=mc*.3+mc*(d1*sh*1.2+d2*.5)+mix(vec3(1),mc,.35)*sp*.6*sh+mc*rim*.3;col*=ao;col=mix(col,vec3(.01,.01,.02),1.-exp(-.02*res.x*res.x));}
+else{col=vec3(.003,.003,.008)+palette(.4+res.z*3.,u_color)*exp(-2.*res.z)*.45;}
+col=col/(.8+col);col=pow(col,vec3(.87));float lum=dot(col,vec3(.2126,.7152,.0722));col=mix(vec3(lum),col,1.45);
+${VIG}gl_FragColor=vec4(clamp(col,0.,1.),1);}`;
+
+// ═══ GEOMETRY SHADER — rewritten ═══
+const F_GEO=`precision highp float;uniform vec2 u_res;uniform float u_cx,u_cy,u_zoom;uniform int u_type,u_color,u_sym,u_comp;
+#define PI 3.14159265
+${PALETTE}
+
+float kaleidoscope(vec2 p,int sym,int comp){
+  float angle=PI/float(sym);float d=1e10;float s=1.;
+  for(int i=0;i<12;i++){
+    if(i>=comp)break;
+    // Fold into symmetry sector
+    float a=atan(p.y,p.x);
+    a=mod(a,2.*angle)-angle;
+    p=vec2(cos(a),sin(a))*length(p);
+    // Fold and scale
+    p=abs(p)-.5/s;
+    // Concentric rings + radial lines
+    float r=length(p);
+    d=min(d,abs(r-.25/s)/s);
+    d=min(d,abs(p.y)/s);
+    d=min(d,abs(p.x-.15/s)/s);
+    s*=2.;
+  }
+  return d;
+}
+
+float spirograph(vec2 p,int sym,int comp){
+  float d=1e10;float R=1.;float r=1./float(sym);float rho=r*.7;
+  for(int i=0;i<200;i++){
+    if(i>=comp*20)break;
+    float t=float(i)*.06;
+    float x=(R-r)*cos(t)+rho*cos((R-r)/r*t);
+    float y=(R-r)*sin(t)+rho*sin((R-r)/r*t);
+    d=min(d,length(p-vec2(x,y)));
+  }
+  // Add inner pattern
+  float R2=.5;float r2=1./float(sym+2);float rho2=r2*.8;
+  for(int i=0;i<200;i++){
+    if(i>=comp*20)break;
+    float t=float(i)*.06;
+    float x=R2+r2*cos(t)+rho2*cos(float(sym)*t);
+    float y=r2*sin(t)+rho2*sin(float(sym)*t);
+    d=min(d,length(p-vec2(x*cos(t*.1)-y*sin(t*.1),x*sin(t*.1)+y*cos(t*.1))));
+  }
+  return d;
+}
+
+float penrose(vec2 p,int comp){
+  float d=1e10;float s=1.;
+  for(int i=0;i<12;i++){
+    if(i>=comp)break;
+    // Five-fold symmetry
+    float a=atan(p.y,p.x);
+    float sector=PI/5.;
+    a=mod(a+sector*.5,2.*sector)-sector;
+    p=vec2(cos(a),abs(sin(a)))*length(p);
+    // Kite shape
+    p-=vec2(.5,0)/s;
+    float golden=1.618;
+    p*=golden;s*=golden;
+    // Track edges
+    d=min(d,abs(p.y)/s);
+    d=min(d,(abs(p.x-.15/s)+abs(p.y)*.5)/s);
+    d=min(d,abs(length(p)-.3/s)/s);
+  }
+  return d;
+}
+
+float apollonian(vec2 p,int comp){
+  float scale=1.;float d=abs(length(p)-1.);
+  for(int i=0;i<12;i++){
+    if(i>=comp)break;
+    p=abs(p);
+    if(p.x<p.y)p=p.yx;
+    // Inversion
+    float k=2./(dot(p-vec2(1,0),p-vec2(1,0)));
+    p=(p-vec2(1,0))*k+vec2(1,0);
+    scale*=k;
+    d=min(d,abs(length(p)-1.)/scale);
+    d=min(d,abs(length(p-vec2(.5,0))-.5)/scale);
+  }
+  return d;
+}
+
+void main(){
+  vec2 p=vec2(u_cx+(gl_FragCoord.x-u_res.x*.5)*u_zoom,u_cy+(gl_FragCoord.y-u_res.y*.5)*u_zoom);
+  float d;
+  if(u_type==0) d=kaleidoscope(p,u_sym,u_comp);
+  else if(u_type==1) d=spirograph(p,u_sym,u_comp);
+  else if(u_type==2) d=penrose(p,u_comp);
+  else d=apollonian(p,u_comp);
+  float lw=u_zoom*1.2;
+  float edge=smoothstep(lw,lw*.1,d);
+  float t=d*6./u_zoom+length(p)*.4+atan(p.y,p.x)*.3;
+  vec3 lineCol=palette(t*.25,u_color)*1.4;
+  vec3 bgCol=palette(t*.08+.5,u_color)*.06;
+  vec3 col=mix(bgCol,lineCol,edge);
+  float glow=exp(-d*2.5/(u_zoom*3.))*0.35;
+  col+=palette(t*.15+.2,u_color)*glow;
+  col=col/(.9+col);col=pow(col,vec3(.9));
+  ${VIG}gl_FragColor=vec4(clamp(col,0.,1.),1);
+}`;
+
+// ═══ LEARN SHADER — fixed fern ═══
+const F_LEARN=`precision highp float;uniform vec2 u_res;uniform float u_cx,u_cy,u_zoom;uniform int u_type,u_color;
+float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+vec2 hash22(vec2 p){return fract(sin(vec2(dot(p,vec2(127.1,311.7)),dot(p,vec2(269.5,183.3))))*43758.5453);}
+float noise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x),f.y);}
+float fbm(vec2 p,int oct){float v=0.,a=.5;mat2 rot=mat2(.8,.6,-.6,.8);for(int i=0;i<10;i++){if(i>=oct)break;v+=a*noise(p);p=rot*p*2.;a*=.5;}return v;}
+float ridgedNoise(vec2 p,int oct){float v=0.,a=.5;mat2 rot=mat2(.8,.6,-.6,.8);for(int i=0;i<10;i++){if(i>=oct)break;v+=a*(1.-abs(noise(p)*2.-1.));p=rot*p*2.1;a*=.5;}return v;}
+vec3 voronoi(vec2 p){vec2 g=floor(p),f=fract(p);float d1=1e10,d2=1e10;vec2 id=vec2(0);for(int y=-1;y<=1;y++)for(int x=-1;x<=1;x++){vec2 n=vec2(x,y);vec2 pt=hash22(g+n);float d=length(n+pt-f);if(d<d1){d2=d1;d1=d;id=g+n;}else if(d<d2){d2=d;}}return vec3(d1,d2,hash(id));}
+
+vec3 naturePal(float t,int type,int scheme){
+  if(scheme==1)return vec3(t*.8+.1);
+  float t2=fract(t);vec3 c;
+  if(type==0){c=mix(vec3(.1,.15,.3),vec3(.3,.25,.15),smoothstep(0.,.3,t2));c=mix(c,vec3(.2,.5,.15),smoothstep(.3,.5,t2));c=mix(c,vec3(.5,.45,.35),smoothstep(.5,.7,t2));c=mix(c,vec3(.85,.85,.9),smoothstep(.7,.9,t2));c=mix(c,vec3(1),smoothstep(.9,1.,t2));}
+  else if(type==1){c=mix(vec3(.02,.06,.01),vec3(.05,.2,.02),smoothstep(0.,.3,t2));c=mix(c,vec3(.1,.45,.05),smoothstep(.3,.5,t2));c=mix(c,vec3(.2,.6,.1),smoothstep(.5,.7,t2));c=mix(c,vec3(.5,.75,.2),smoothstep(.7,1.,t2));}
+  else if(type==2){c=mix(vec3(.02,0,.05),vec3(.15,0,.4),smoothstep(0.,.3,t2));c=mix(c,vec3(.3,.2,.8),smoothstep(.3,.5,t2));c=mix(c,vec3(.5,.6,1),smoothstep(.5,.7,t2));c=mix(c,vec3(.9,.95,1),smoothstep(.7,1.,t2));}
+  else if(type==3){c=mix(vec3(.4,.15,.08),vec3(.7,.35,.15),smoothstep(0.,.3,t2));c=mix(c,vec3(.9,.6,.3),smoothstep(.3,.6,t2));c=mix(c,vec3(1,.85,.6),smoothstep(.6,1.,t2));}
+  else if(type==4){c=mix(vec3(.02,.04,.01),vec3(.12,.18,.04),smoothstep(0.,.2,t2));c=mix(c,vec3(.15,.3,.06),smoothstep(.2,.4,t2));c=mix(c,vec3(.25,.45,.1),smoothstep(.4,.6,t2));c=mix(c,vec3(.35,.25,.1),smoothstep(.6,.8,t2));c=mix(c,vec3(.5,.6,.15),smoothstep(.8,1.,t2));}
+  else if(type==5){c=mix(vec3(.25,.05,.06),vec3(.55,.12,.14),smoothstep(0.,.25,t2));c=mix(c,vec3(.75,.25,.2),smoothstep(.25,.5,t2));c=mix(c,vec3(.9,.5,.45),smoothstep(.5,.75,t2));c=mix(c,vec3(1.,.8,.75),smoothstep(.75,1.,t2));}
+  else{c=mix(vec3(.03,.03,.05),vec3(.1,.1,.14),smoothstep(0.,.25,t2));c=mix(c,vec3(.18,.18,.22),smoothstep(.25,.5,t2));c=mix(c,vec3(.3,.3,.35),smoothstep(.5,.75,t2));c=mix(c,vec3(.5,.5,.55),smoothstep(.75,1.,t2));}
+  return c;
+}
+
+// Barnsley Fern IFS — proper fractal fern
+float barnsley(vec2 p){
+  // Run IFS backwards: for each pixel check if it converges to fern attractor
+  // Better: draw fern as distance field using multiple affine transforms
+  float d=1e10;
+  vec2 q=p;
+  // The fern is drawn by iterating forward; for shader we check membership
+  // We'll use a recursive approach: fold space using IFS transforms
+  float s=1.;
+  for(int i=0;i<20;i++){
+    // Symmetry fold for fern frond
+    q.x=abs(q.x); // mirror
+    // Leaflet pairs
+    float leafD=abs(q.x-q.y*.15)-.002*s;
+    d=min(d,max(leafD,-q.y)/s);
+    // Central stem
+    d=min(d,abs(q.x)*.5/s);
+    // Scale and shift for next level
+    float angle=.35+float(i)*.02;
+    float c=cos(angle),si=sin(angle);
+    q=vec2(q.x*c-q.y*si, q.x*si+q.y*c);
+    q.y-=.12/s;
+    q*=1.5;
+    s*=1.5;
+  }
+  return d;
+}
+
+void main(){
+  vec2 p=vec2(u_cx+(gl_FragCoord.x-u_res.x*.5)*u_zoom,u_cy+(gl_FragCoord.y-u_res.y*.5)*u_zoom);
+  vec3 col;
+  if(u_type==0){
+    // Mountains
+    float h=fbm(p*3.,8);float h2=fbm(p*6.+10.,6)*.5;float terrain=h+h2*.3;
+    float shadow=clamp((fbm((p+vec2(.02,.02))*3.,8)-h)*15.,-1.,1.);
+    col=naturePal(terrain,0,u_color);col*=.7+.3*shadow;
+    float eps=u_zoom*2.;float hx=fbm((p+vec2(eps,0))*3.,8);float hy=fbm((p+vec2(0,eps))*3.,8);
+    col+=vec3(1,.95,.9)*clamp(abs((hx-h)+(hy-h))/eps*.3,0.,.3);
+  } else if(u_type==1){
+    // Fern — proper branching fractal
+    vec2 q=p;
+    q.y-=.3; // offset
+    float d=barnsley(q);
+    // Distance field rendering
+    float lineW=u_zoom*1.5;
+    float shape=smoothstep(lineW,lineW*.05,d);
+    // Color based on position and detail level
+    float t=length(q)*.3+q.y*.5+.3;
+    col=naturePal(t,1,u_color)*shape;
+    // Veiny detail
+    float veins=abs(sin(q.y*60.+q.x*30.))*smoothstep(.01,0.,d);
+    col+=naturePal(.8,1,u_color)*veins*.15;
+    // Background
+    col+=naturePal(.1,1,u_color)*.025;
+    // Subtle secondary fronds at different scales
+    vec2 q2=p*2.+vec2(.5,.2);q2.y-=.3;
+    float d2=barnsley(q2);
+    float shape2=smoothstep(lineW*2.,lineW*.1,d2)*.3;
+    col+=naturePal(length(q2)*.3+.5,1,u_color)*shape2;
+  } else if(u_type==2){
+    // Lightning
+    float n=ridgedNoise(p*4.,8);float n2=ridgedNoise(p*8.+5.,6);
+    float bolt=pow(n,3.)+pow(n2,4.)*.5;
+    col=naturePal(bolt,2,u_color)*bolt*2.;col+=naturePal(.1,2,u_color)*.02;
+    col+=vec3(.8,.9,1)*pow(max(n,n2),8.);
+  } else if(u_type==3){
+    // Cells
+    vec3 v=voronoi(p*5.);float edge=v.y-v.x;
+    col=naturePal(v.z,3,u_color)*.7;
+    col=mix(col,naturePal(.2,3,u_color)*.2,smoothstep(.05,0.,edge));
+    vec3 v2=voronoi(p*20.);col+=naturePal(v2.z*.5+.5,3,u_color)*smoothstep(.1,0.,v2.y-v2.x)*.3;
+    if(v.x<.1)col+=naturePal(.8,3,u_color)*(0.1-v.x)*5.;
+  } else if(u_type==4){
+    // Forest — recursive branching trees on terrain
+    float ground=fbm(p*2.,6)*.3;
+    col=naturePal(ground*.5+.1,4,u_color)*.4;
+    // Multiple trees at different positions
+    float trees=0.;
+    for(int t=0;t<5;t++){
+      float tx=float(t)*.35-.7;
+      vec2 tp=p-vec2(tx,ground-.2);
+      tp.y-=.1;
+      // Tree trunk + branches using recursive folds
+      float d=1e10;float s=1.;
+      vec2 q=tp;
+      d=min(d,max(abs(q.x)-.008,-q.y));
+      for(int i=0;i<10;i++){
+        q.y-=.08/s;
+        q.x=abs(q.x);
+        float a=.5+float(i)*.06+float(t)*.1;
+        float c=cos(a),si=sin(a);
+        q=vec2(q.x*c-q.y*si,q.x*si+q.y*c);
+        float seg=max(abs(q.x)-.006/s,max(-q.y,q.y-.08/s));
+        d=min(d,seg);
+        s*=1.6;
+      }
+      float shape=exp(-d*120./(u_zoom*200.+1.));
+      // Canopy foliage
+      float canopy=fbm(tp*30.+float(t)*10.,5);
+      float inCanopy=smoothstep(.35,.0,length(tp-vec2(0,.25))-.15);
+      float leaves=canopy*inCanopy;
+      trees+=shape+leaves*.4;
+    }
+    col+=naturePal(.4+trees*.3,4,u_color)*trees;
+    col+=naturePal(.6,4,u_color)*.02;
+  } else if(u_type==5){
+    // Lungs — bronchial fractal branching
+    float d=1e10;float s=1.;
+    // Two lung lobes
+    for(int lobe=0;lobe<2;lobe++){
+      vec2 q=p;
+      q.x=lobe==0?q.x+.25:-(q.x-.25);
+      q.y+=.1;
+      // Trachea
+      float trunk=max(abs(q.x)-.02,-q.y);
+      d=min(d,trunk);
+      // Bronchial branching
+      for(int i=0;i<12;i++){
+        q.y-=.1/s;
+        q.x=abs(q.x);
+        float a=.55+float(i)*.04;
+        float c=cos(a),si=sin(a);
+        q=vec2(q.x*c-q.y*si,q.x*si+q.y*c);
+        float w=.015/s;
+        float seg=max(abs(q.x)-w,max(-q.y,q.y-.1/s));
+        d=min(d,seg);
+        s*=1.55;
+      }
+    }
+    float lw=u_zoom*1.5;
+    float shape=smoothstep(lw,lw*.05,d);
+    // Alveoli texture in surrounding area
+    vec3 v=voronoi(p*40.);
+    float alveoli=smoothstep(.08,.02,v.y-v.x)*.3;
+    float lungField=smoothstep(.5,.0,length(p-vec2(0,-.1))-.35);
+    col=naturePal(.3+d*5.,5,u_color)*shape;
+    col+=naturePal(v.z*.3+.5,5,u_color)*alveoli*lungField;
+    col+=naturePal(.15,5,u_color)*.02;
+  } else {
+    // Activated Carbon — multi-scale porous structure
+    // Macro pores
+    vec3 v1=voronoi(p*4.);
+    float macro=v1.y-v1.x;
+    // Meso pores (within macro structure)
+    vec3 v2=voronoi(p*16.+v1.z*2.);
+    float meso=v2.y-v2.x;
+    // Micro pores (finest scale)
+    vec3 v3=voronoi(p*60.+v2.z*3.);
+    float micro=v3.y-v3.x;
+    // Ultra-micro via noise
+    float ultra=fbm(p*200.,5);
+    // Combine: carbon matrix with multi-scale porosity
+    float solid=1.;
+    solid*=smoothstep(.03,.08,macro);  // macro pore walls
+    solid*=smoothstep(.02,.06,meso);   // meso pore walls
+    solid*=smoothstep(.015,.05,micro); // micro pore walls
+    solid*=.5+.5*ultra;               // nano texture
+    // Surface area visualization — edges glow (representing adsorption sites)
+    float edges=0.;
+    edges+=exp(-macro*20.)*.5;
+    edges+=exp(-meso*15.)*.3;
+    edges+=exp(-micro*12.)*.2;
+    col=naturePal(solid*.5+.2,6,u_color)*solid*.8;
+    // Pore interior — darker
+    col+=naturePal(.1,6,u_color)*(1.-solid)*.15;
+    // Surface glow — represents high surface area sites
+    col+=naturePal(.7+edges*.3,6,u_color)*edges*.4;
+    col+=vec3(.2,.25,.35)*edges*.15;
+  }
+  col=col/(.85+col);col=pow(col,vec3(.9));
+  ${VIG}gl_FragColor=vec4(clamp(col,0.,1.),1);
+}`;
+
+// ═══ GL SETUP ═══
+function cs(type,src){const s=gl.createShader(type);gl.shaderSource(s,src);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)){console.error(gl.getShaderInfoLog(s));return null;}return s;}
+function lp(vs,fs){const p=gl.createProgram();gl.attachShader(p,cs(gl.VERTEX_SHADER,vs));gl.attachShader(p,cs(gl.FRAGMENT_SHADER,fs));gl.linkProgram(p);if(!gl.getProgramParameter(p,gl.LINK_STATUS))console.error(gl.getProgramInfoLog(p));return p;}
+function gu(prog,names){const u={};names.forEach(n=>u[n]=gl.getUniformLocation(prog,n));return u;}
+
+const p2d=lp(V,F2D), p3d=lp(V,F3D), pGeo=lp(V,F_GEO), pLearn=lp(V,F_LEARN), pEq=lp(V,F_EQ);
+const buf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buf);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);
+function sa(prog){const a=gl.getAttribLocation(prog,'a_pos');gl.enableVertexAttribArray(a);gl.vertexAttribPointer(a,2,gl.FLOAT,false,0,0);}
+
+const u2d=gu(p2d,['u_res','u_cx','u_cy','u_zoom','u_type','u_color','u_maxIter','u_power','u_juliaR','u_juliaI']);
+const u3d=gu(p3d,['u_res','u_time','u_camPos','u_camTarget','u_camUp','u_fractal','u_color','u_power','u_iter','u_detail','u_camDist']);
+const uGeo=gu(pGeo,['u_res','u_cx','u_cy','u_zoom','u_type','u_color','u_sym','u_comp']);
+const uLearn=gu(pLearn,['u_res','u_cx','u_cy','u_zoom','u_type','u_color']);
+const uEq=gu(pEq,['u_res','u_cx','u_cy','u_zoom','u_mode','u_color','u_maxIter','u_power','u_cr','u_ci','u_esc']);
+
+function resize(){const d=Math.min(window.devicePixelRatio,1.5);canvas.width=window.innerWidth*d;canvas.height=window.innerHeight*d;gl.viewport(0,0,canvas.width,canvas.height);needsRedraw=true;}
+window.addEventListener('resize',resize);resize();
+
+// ═══ INPUT ═══
+function getDPR(){return Math.min(window.devicePixelRatio,1.5);}
+function getState(){return activeMode==='2d'?f2d:activeMode==='geo'?geo:activeMode==='learn'?learn:activeMode==='eq'?eq:null;}
+
+canvas.addEventListener('mousedown',e=>{isDragging=true;isPanning=e.shiftKey;lastMX=e.clientX;lastMY=e.clientY;document.body.classList.add('dragging');});
+window.addEventListener('mousemove',e=>{
+  if(!isDragging)return;const dx=e.clientX-lastMX,dy=e.clientY-lastMY;lastMX=e.clientX;lastMY=e.clientY;
+  if(activeMode==='3d'){if(isPanning||e.shiftKey){const s=f3d.dist*.0015;f3d.panX-=dx*s;f3d.panY+=dy*s;upd3dT();}else{f3d.theta-=dx*.004;f3d.phi+=dy*.004;f3d.phi=Math.max(-Math.PI*.49,Math.min(Math.PI*.49,f3d.phi));}}
+  else{const st=getState();if(st){const d=getDPR();st.cx-=dx*st.zoom*d;st.cy+=dy*st.zoom*d;needsRedraw=true;}}
+});
+window.addEventListener('mouseup',()=>{isDragging=false;isPanning=false;document.body.classList.remove('dragging');});
+
+canvas.addEventListener('wheel',e=>{
+  e.preventDefault();
+  if(activeMode==='3d'){f3d.dist*=Math.exp(e.deltaY*.0012);f3d.dist=Math.max(.00005,Math.min(15,f3d.dist));}
+  else{const st=getState();if(st){const f=Math.exp(e.deltaY*.0015),r=canvas.getBoundingClientRect(),d=getDPR();
+    const mx=(e.clientX-r.left)*d,my=(r.height-(e.clientY-r.top))*d;
+    const wx=st.cx+(mx-canvas.width*.5)*st.zoom,wy=st.cy+(my-canvas.height*.5)*st.zoom;
+    st.zoom*=f;st.zoom=Math.max(1e-15,Math.min(.05,st.zoom));
+    st.cx=wx-(mx-canvas.width*.5)*st.zoom;st.cy=wy-(my-canvas.height*.5)*st.zoom;needsRedraw=true;}}
+  updateZ();
+},{passive:false});
+
+// Touch
+let lastT=[];
+canvas.addEventListener('touchstart',e=>{e.preventDefault();lastT=[...e.touches];isDragging=true;if(e.touches.length===1){lastMX=e.touches[0].clientX;lastMY=e.touches[0].clientY;}},{passive:false});
+canvas.addEventListener('touchmove',e=>{e.preventDefault();
+  if(e.touches.length===1){const dx=e.touches[0].clientX-lastMX,dy=e.touches[0].clientY-lastMY;lastMX=e.touches[0].clientX;lastMY=e.touches[0].clientY;
+    if(activeMode==='3d'){f3d.theta-=dx*.004;f3d.phi+=dy*.004;f3d.phi=Math.max(-Math.PI*.49,Math.min(Math.PI*.49,f3d.phi));}
+    else{const st=getState();if(st){const d=getDPR();st.cx-=dx*st.zoom*d;st.cy+=dy*st.zoom*d;needsRedraw=true;}}}
+  else if(e.touches.length===2&&lastT.length===2){
+    const d0=Math.hypot(lastT[0].clientX-lastT[1].clientX,lastT[0].clientY-lastT[1].clientY);
+    const d1=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);const r=d0/d1;
+    if(activeMode==='3d'){f3d.dist*=r;f3d.dist=Math.max(.00005,Math.min(15,f3d.dist));}
+    else{const st=getState();if(st){st.zoom*=r;st.zoom=Math.max(1e-15,Math.min(.05,st.zoom));needsRedraw=true;}}updateZ();}
+  lastT=[...e.touches];},{passive:false});
+canvas.addEventListener('touchend',()=>{isDragging=false;});
+
+canvas.addEventListener('mousemove',e=>{
+  if((activeMode==='2d'||activeMode==='eq')&&!isDragging){const r=canvas.getBoundingClientRect(),d=getDPR();const st=getState();if(!st)return;
+    const mx=(e.clientX-r.left)*d,my=(r.height-(e.clientY-r.top))*d;
+    const wr=st.cx+(mx-canvas.width*.5)*st.zoom,wi=st.cy+(my-canvas.height*.5)*st.zoom;
+    document.getElementById('coord-display').textContent=`${wr>=0?'+':''}${wr.toExponential(4)}  ${wi>=0?'+':''}${wi.toExponential(4)}i`;}
+});
+
+function upd3dT(){const r=[-Math.sin(f3d.theta),0,Math.cos(f3d.theta)];f3d.target=[f3d.panX*r[0],f3d.panY,f3d.panX*r[2]];}
+
+function updateZ(){
+  let z;const st=getState();
+  if(activeMode==='3d')z=3.5/f3d.dist;
+  else if(st){const base=activeMode==='2d'||activeMode==='eq'?0.003:activeMode==='geo'?0.004:0.005;z=base/st.zoom;}else z=1;
+  let t;if(z>=1e12)t=(z/1e12).toFixed(1)+'Tx';else if(z>=1e9)t=(z/1e9).toFixed(1)+'Gx';else if(z>=1e6)t=(z/1e6).toFixed(1)+'Mx';else if(z>=1000)t=(z/1000).toFixed(1)+'Kx';else if(z>=10)t=z.toFixed(0)+'x';else t=z.toFixed(2)+'x';
+  document.getElementById('zoomVal').textContent=t;
+}
+
+// ═══ LEARN CONTENT ═══
+const LC=[
+  {title:'Fractal Mountains',html:`<h2>Fractal Landscapes</h2>
+<h3>In Nature</h3>
+<p>Mountains, coastlines, and cloud formations exhibit <span class="highlight">statistical self-similarity</span> — they look roughly the same whether viewed from a satellite, an airplane, or standing on a ridge. A photograph of a cliff face at arm's length is nearly indistinguishable from one taken from a helicopter.</p>
+
+<div class="fact-box"><span class="fact-label">Key Concept</span><p>Unlike exact fractals (like the Mandelbrot set), natural landscapes show <span class="highlight">statistical self-similarity</span> — the patterns are similar at different scales, but not identical copies. The same roughness, the same jaggedness, the same distribution of features.</p></div>
+
+<h3>The Math</h3>
+<p>This terrain is generated using <span class="highlight">Fractional Brownian Motion (fBm)</span> — a technique that layers noise at progressively smaller scales. Each layer (called an "octave") has half the amplitude and double the frequency of the previous one. The sum of all these layers creates terrain that looks natural at every zoom level.</p>
+<p>The key parameter is the <span class="highlight">Hurst exponent (H)</span>, which controls roughness. H = 1.0 gives smooth rolling hills. H = 0.5 gives rugged mountains. H near 0 gives extreme jaggedness like the surface of a sponge.</p>
+
+<h3>Mandelbrot's Question</h3>
+<p>In 1967, Benoit Mandelbrot published a famous paper asking: <em>"How long is the coast of Britain?"</em> The answer, surprisingly, depends on the length of your measuring stick. A 100 km ruler gives about 2,800 km. A 50 km ruler gives 3,400 km. A 1 km ruler gives over 10,000 km. As the ruler shrinks, the measured length grows toward infinity.</p>
+<p>This paradox led to the concept of <span class="highlight">fractal dimension</span>. Britain's coast has a dimension of about 1.25 — more than a line (dimension 1) but less than a plane (dimension 2). It captures the concept of "how much space a wiggly line fills."</p>
+
+<div class="fact-box"><span class="fact-label">Try it</span><p>Zoom in on the terrain. Notice how new detail keeps appearing — ridges within ridges, valleys within valleys. This is self-similarity in action. At every scale, the statistical character of the landscape is preserved.</p></div>
+
+<h3>Where You See It</h3>
+<div><span class="nature-tag">Mountain Ranges</span><span class="nature-tag">Coastlines</span><span class="nature-tag">Clouds</span><span class="nature-tag">River Networks</span><span class="nature-tag">Ocean Waves</span><span class="nature-tag">Desert Dunes</span><span class="nature-tag">Canyon Walls</span><span class="nature-tag">Crater Terrain</span></div>`},
+
+  {title:'Fractal Ferns',html:`<h2>Branching Fractals</h2>
+<h3>In Nature</h3>
+<p>Ferns are nature's most iconic fractals. Look at a fern frond: each branch is a miniature copy of the whole frond. Zoom into a branch, and its sub-branches are copies too. This is <span class="highlight">exact self-similarity</span> — the same pattern genuinely repeating at every scale, not just statistically.</p>
+<p>This isn't unique to ferns. Trees, river systems, blood vessels, neurons, lung bronchi, and even the branching of road networks all follow the same fractal logic.</p>
+
+<div class="fact-box"><span class="fact-label">Barnsley's Fern</span><p>In 1988, mathematician Michael Barnsley showed that a realistic fern can be generated using just <span class="highlight">four simple affine transformations</span> — essentially four rules for shrinking, rotating, and repositioning a point. Applied millions of times at random, these four rules produce a perfect fern. This is called an <span class="highlight">Iterated Function System (IFS)</span>.</p></div>
+
+<h3>The Math</h3>
+<p>This visualization uses <span class="highlight">recursive mirroring and rotation</span>. At each iteration: take the absolute value (mirror the shape), rotate by a small angle (create branch direction), shift upward (move along the stem), and scale (branches get smaller). Just these two operations — mirror and rotate — repeated again and again, create the infinite organic complexity of a fern.</p>
+
+<h3>Nature's Optimization</h3>
+<p>Fractal branching isn't decorative — it's <span class="highlight">functionally optimal</span>. Evolution discovered that fractal geometry solves the problem of maximizing surface area while minimizing material and transport distances:</p>
+<div class="analogy"><span class="analogy-icon">🌿</span><p><strong>Ferns:</strong> Maximize light capture with minimal stem material</p></div>
+<div class="analogy"><span class="analogy-icon">🫁</span><p><strong>Lungs:</strong> Pack ~70 m² of gas-exchange surface into your chest</p></div>
+<div class="analogy"><span class="analogy-icon">🩸</span><p><strong>Blood vessels:</strong> Deliver blood to every cell with just 5 liters total</p></div>
+<div class="analogy"><span class="analogy-icon">🧠</span><p><strong>Neurons:</strong> Each neuron connects to ~7,000 others via fractal branching</p></div>
+<div class="analogy"><span class="analogy-icon">🌊</span><p><strong>River deltas:</strong> Drain entire continents through branching channels</p></div>
+
+<div class="fact-box"><span class="fact-label">Try it</span><p>Zoom into the fern frond. Each smaller branch recapitulates the structure of the whole. The self-similarity continues until you reach the pixel limit — but mathematically, it continues forever.</p></div>
+
+<h3>Where You See It</h3>
+<div><span class="nature-tag">Ferns</span><span class="nature-tag">Trees</span><span class="nature-tag">Lungs</span><span class="nature-tag">Blood Vessels</span><span class="nature-tag">Neurons</span><span class="nature-tag">River Deltas</span><span class="nature-tag">Broccoli</span><span class="nature-tag">Snowflakes</span><span class="nature-tag">Coral</span></div>`},
+
+  {title:'Fractal Lightning',html:`<h2>Electric Fractals</h2>
+<h3>In Nature</h3>
+<p>A lightning bolt doesn't travel in a straight line — it branches, forks, and splits in a fractal pattern governed by <span class="highlight">chaos and probability</span>. The bolt seeks the path of least electrical resistance through the air, but that path is influenced by random variations in temperature, humidity, and dust particles. The result: a fractal tree of light.</p>
+
+<div class="fact-box"><span class="fact-label">Scale</span><p>A single lightning bolt can be 5 miles long, reach temperatures of <span class="highlight">30,000°C</span> (five times hotter than the sun's surface), and carry up to 300 million volts. Yet its fractal branching structure is governed by the same mathematics as frost forming on a window pane.</p></div>
+
+<h3>The Math</h3>
+<p>This visualization uses <span class="highlight">ridged fractal noise</span> — a variant of Perlin noise where the output is folded back on itself: instead of smooth rolling hills of noise, the folding creates sharp ridges and valleys. Layering multiple octaves of ridged noise at different scales produces patterns that closely resemble natural discharge phenomena.</p>
+<p>The underlying mechanism is <span class="highlight">Diffusion-Limited Aggregation (DLA)</span>: particles (or electrical charge) diffusing randomly tend to aggregate into branching fractal structures. The tips of existing branches are more likely to capture new particles, causing preferential growth at the extremities.</p>
+
+<h3>Universal Discharge Patterns</h3>
+<p>The same fractal geometry appears wherever energy dissipates through a medium:</p>
+<div class="analogy"><span class="analogy-icon">⚡</span><p><strong>Lightning:</strong> Electrical discharge through atmosphere</p></div>
+<div class="analogy"><span class="analogy-icon">🔬</span><p><strong>Lichtenberg figures:</strong> Electrical burns captured in acrylic blocks</p></div>
+<div class="analogy"><span class="analogy-icon">❄️</span><p><strong>Frost crystals:</strong> Water molecules depositing on cold glass</p></div>
+<div class="analogy"><span class="analogy-icon">🪨</span><p><strong>Mineral dendrites:</strong> Manganese oxide growing between rock layers</p></div>
+<div class="analogy"><span class="analogy-icon">🌌</span><p><strong>Cosmic web:</strong> The large-scale structure of the universe itself</p></div>
+
+<div class="fact-box"><span class="fact-label">Try it</span><p>Zoom in on the bright ridges. Notice how smaller branches emerge from larger ones, and even smaller branches from those. The ridged noise creates self-similar branching at every zoom level.</p></div>
+
+<h3>Where You See It</h3>
+<div><span class="nature-tag">Lightning</span><span class="nature-tag">Frost Crystals</span><span class="nature-tag">Dendrites</span><span class="nature-tag">Lichtenberg</span><span class="nature-tag">River Erosion</span><span class="nature-tag">Coral Growth</span><span class="nature-tag">Cosmic Web</span><span class="nature-tag">Fungal Networks</span></div>`},
+
+  {title:'Fractal Cells',html:`<h2>Cellular Patterns</h2>
+<h3>In Nature</h3>
+<p>Look closely at a giraffe's coat, a turtle's shell, dried mud, or a dragonfly's wing. You'll see the same pattern: irregular polygonal cells fitting together like a mosaic. These are <span class="highlight">Voronoi patterns</span>, and they appear everywhere that growth competes for space.</p>
+
+<div class="fact-box"><span class="fact-label">Georgy Voronoi</span><p>Ukrainian mathematician Georgy Voronoi formalized these diagrams in 1908. The rule is simple: given a set of seed points, each cell contains all points closer to its seed than to any other. Despite this simplicity, Voronoi patterns emerge in fields from biology to astrophysics to urban planning.</p></div>
+
+<h3>The Math</h3>
+<p>A <span class="highlight">Voronoi diagram</span> partitions space based on proximity to seed points. For each pixel, find the closest seed — that determines which cell the pixel belongs to. The cell edges form where two seeds are equidistant. This simple nearest-neighbor rule generates all the organic complexity you see.</p>
+<p>The fractal nature emerges when you <span class="highlight">nest Voronoi patterns</span>: the interior of each cell can contain its own set of seeds, creating cells within cells within cells. Zoom in and new structure appears — self-similarity across scales, just like the Mandelbrot set.</p>
+
+<h3>Why This Pattern?</h3>
+<p>Voronoi patterns arise from a universal principle: <span class="highlight">competitive growth in space</span>. When multiple entities grow simultaneously from seed points, they expand until they meet their neighbors. The result is always a Voronoi tessellation:</p>
+<div class="analogy"><span class="analogy-icon">🧫</span><p><strong>Biological cells:</strong> Grow from nuclei until they press against neighbors</p></div>
+<div class="analogy"><span class="analogy-icon">🫧</span><p><strong>Soap bubbles:</strong> Minimize surface tension, forming Voronoi-like foams</p></div>
+<div class="analogy"><span class="analogy-icon">🦒</span><p><strong>Giraffe spots:</strong> Melanocyte cells expand during embryonic development</p></div>
+<div class="analogy"><span class="analogy-icon">🐢</span><p><strong>Turtle shells:</strong> Scute cells grow radially from growth centers</p></div>
+<div class="analogy"><span class="analogy-icon">🏙️</span><p><strong>City territories:</strong> Urban influence zones form Voronoi cells around city centers</p></div>
+
+<div class="fact-box"><span class="fact-label">Try it</span><p>Zoom into any cell edge. You'll see smaller cells (the nested Voronoi) creating structure at finer scales. This demonstrates how simple rules operating at multiple scales produce the rich textures we see in nature.</p></div>
+
+<h3>Where You See It</h3>
+<div><span class="nature-tag">Cells</span><span class="nature-tag">Soap Bubbles</span><span class="nature-tag">Giraffe Skin</span><span class="nature-tag">Turtle Shell</span><span class="nature-tag">Dragonfly Wings</span><span class="nature-tag">Dried Mud</span><span class="nature-tag">Honeycomb</span><span class="nature-tag">Corn Kernels</span><span class="nature-tag">Galaxy Clusters</span></div>`},
+
+  {title:'Fractal Forest',html:`<h2>Forest Canopy Fractals</h2>
+<h3>In Nature</h3>
+<p>A forest is a fractal at every level. Each tree is a fractal branching structure. The canopy itself forms a fractal — large gaps between trees contain smaller gaps between branches, which contain even smaller gaps between leaves. From satellite imagery, the edge of a forest has a fractal boundary just like a coastline.</p>
+
+<div class="fact-box"><span class="fact-label">Fractal Dimension</span><p>Forest canopies have a fractal dimension of about <span class="highlight">2.3 to 2.8</span> — more than a flat surface (2.0) but less than a solid volume (3.0). This measures how efficiently the canopy fills 3D space to capture light. Tropical rainforests score higher — they fill space more densely.</p></div>
+
+<h3>The Math</h3>
+<p>Each tree in this visualization is generated by <span class="highlight">recursive branching</span>: start with a trunk, split into two branches at an angle, then repeat at smaller scale. The same algorithm that draws one tree draws an entire forest when applied at multiple positions with slight random variations.</p>
+<p>The canopy foliage uses <span class="highlight">fractal noise (fBm)</span> to create the irregular, clustered leaf distribution seen in real trees — not uniform, but self-similar at different scales.</p>
+
+<h3>Why Trees Are Fractal</h3>
+<div class="analogy"><span class="analogy-icon">🌳</span><p><strong>Light harvesting:</strong> Fractal branching lets a tree expose the maximum leaf area to sunlight without self-shading</p></div>
+<div class="analogy"><span class="analogy-icon">💧</span><p><strong>Water transport:</strong> The branching vascular system minimizes the distance water must travel from roots to any leaf</p></div>
+<div class="analogy"><span class="analogy-icon">💪</span><p><strong>Structural strength:</strong> Tapering branches distribute wind loads efficiently — each branch carries exactly the weight below it</p></div>
+
+<div class="fact-box"><span class="fact-label">Try it</span><p>Zoom into the canopy area. The fractal noise creates leaf-like clustering at every scale — just like looking at a real tree through binoculars reveals ever-finer branching detail.</p></div>
+
+<h3>Where You See It</h3>
+<div><span class="nature-tag">Forests</span><span class="nature-tag">Mangroves</span><span class="nature-tag">Coral Reefs</span><span class="nature-tag">Mycelium</span><span class="nature-tag">Broccoli</span><span class="nature-tag">Cauliflower</span><span class="nature-tag">Romanesco</span><span class="nature-tag">Root Systems</span></div>`},
+
+  {title:'Fractal Lungs',html:`<h2>The Fractal Lung</h2>
+<h3>In Nature</h3>
+<p>Your lungs are perhaps the most elegant fractal in your body. The trachea splits into two bronchi, each splits again, and again — <span class="highlight">23 generations of branching</span> in total. At the finest level, 300 million tiny air sacs called <span class="highlight">alveoli</span> perform the actual gas exchange.</p>
+
+<div class="fact-box"><span class="fact-label">Astonishing Numbers</span><p>The total internal surface area of human lungs is approximately <span class="highlight">70 m²</span> — about the size of a tennis court — folded into a volume of just 6 liters. If you laid all the airways end-to-end, they'd stretch over 2,400 km. This extraordinary packing is only possible through fractal geometry.</p></div>
+
+<h3>The Math</h3>
+<p>The bronchial tree follows a precise fractal law: at each generation, the <span class="highlight">diameter ratio</span> between parent and daughter branches follows Murray's Law — the cube of the parent diameter equals the sum of cubes of daughter diameters. This minimizes the total energy required to pump air through the system.</p>
+<p>The visualization shows this recursive branching with <span class="highlight">Voronoi-patterned alveoli</span> filling the surrounding lung tissue — each tiny cell representing an air sac where oxygen crosses into your blood.</p>
+
+<h3>Why Lungs Must Be Fractal</h3>
+<div class="analogy"><span class="analogy-icon">🫁</span><p><strong>Surface area:</strong> Fractal branching packs 70 m² of gas-exchange surface into your chest cavity</p></div>
+<div class="analogy"><span class="analogy-icon">🔬</span><p><strong>Diffusion distance:</strong> Every alveolus is just 0.2 μm from a blood capillary — close enough for passive O₂/CO₂ diffusion</p></div>
+<div class="analogy"><span class="analogy-icon">🌊</span><p><strong>Airflow:</strong> The branching tree slows air smoothly from 1 m/s in the trachea to near-zero in the alveoli, enabling gentle gas exchange</p></div>
+<div class="analogy"><span class="analogy-icon">⚖️</span><p><strong>Murray's Law:</strong> Branch diameters optimize for minimum pumping energy — evolution found the mathematical optimum</p></div>
+
+<div class="fact-box"><span class="fact-label">Disease Connection</span><p>Lung diseases like emphysema and COPD destroy the fractal structure. The loss of fine branching reduces surface area dramatically — which is why these conditions cause breathlessness. Measuring the <span class="highlight">fractal dimension of lung tissue</span> in CT scans is now used as a diagnostic tool.</p></div>
+
+<div class="fact-box"><span class="fact-label">Try it</span><p>Zoom into the bronchial branches. Each split mirrors the whole structure. Then zoom into the surrounding tissue to see the alveolar Voronoi pattern — each tiny cell is an air sac.</p></div>
+
+<h3>Where You See It</h3>
+<div><span class="nature-tag">Lungs</span><span class="nature-tag">Blood Vessels</span><span class="nature-tag">Kidneys</span><span class="nature-tag">Intestinal Villi</span><span class="nature-tag">Placenta</span><span class="nature-tag">Liver Sinusoids</span></div>`},
+
+  {title:'Activated Carbon',html:`<h2>Activated Carbon: Engineered Fractals</h2>
+<h3>What Is It?</h3>
+<p>Activated carbon is perhaps the most dramatic example of <span class="highlight">fractal geometry applied to engineering</span>. It's carbon that has been processed to have an extraordinarily porous structure — a fractal network of holes within holes within holes, creating an almost unbelievable amount of internal surface area.</p>
+
+<div class="fact-box"><span class="fact-label">Mind-Blowing Surface Area</span><p>A single gram of high-quality activated carbon has an internal surface area of <span class="highlight">3,000 m²</span> — that's roughly half a football pitch, in a piece of carbon you could hold between your fingers. The highest-performing materials reach 4,000+ m²/g. This is only possible because the pore structure is fractal.</p></div>
+
+<h3>The Fractal Structure</h3>
+<p>Activated carbon has pores at <span class="highlight">four distinct scales</span>, each nested within the last:</p>
+<div class="analogy"><span class="analogy-icon">🕳️</span><p><strong>Macro pores</strong> (&gt;50 nm): Transport highways — let molecules enter the structure quickly</p></div>
+<div class="analogy"><span class="analogy-icon">🔵</span><p><strong>Meso pores</strong> (2–50 nm): Distribution channels — spread molecules throughout the material</p></div>
+<div class="analogy"><span class="analogy-icon">⚫</span><p><strong>Micro pores</strong> (0.7–2 nm): Where most adsorption happens — molecules stick to the walls</p></div>
+<div class="analogy"><span class="analogy-icon">🔘</span><p><strong>Ultra-micro pores</strong> (&lt;0.7 nm): Molecular-sized slots — can selectively trap specific molecules</p></div>
+
+<p>This multi-scale porosity is exactly what makes it <span class="highlight">fractal</span>: the pore structure looks similar whether you zoom in 10x, 100x, or 1000x. Each scale of pores has a similar statistical distribution of shapes and sizes.</p>
+
+<h3>The Math</h3>
+<p>This visualization shows the fractal pore structure using <span class="highlight">nested Voronoi diagrams</span> at four different scales — exactly mirroring the macro/meso/micro/ultra hierarchy. The glowing edges represent <span class="highlight">adsorption sites</span> — the surfaces where molecules stick. The more edge surface you see, the more surface area is available for capture.</p>
+<p>The fractal dimension of activated carbon pore networks is typically <span class="highlight">2.5 to 2.9</span> — very close to filling all of 3D space, which is why the surface area is so extreme.</p>
+
+<div class="fact-box"><span class="fact-label">Applications</span><p>Activated carbon is everywhere: <span class="highlight">water purification</span> (traps contaminants), <span class="highlight">gas masks</span> (adsorbs toxic gases), <span class="highlight">medicine</span> (treats poisoning), <span class="highlight">gold recovery</span> (mining), <span class="highlight">supercapacitors</span> (energy storage), and <span class="highlight">air filtration</span>. The principle is always the same: fractal surface area provides enormous numbers of binding sites.</p></div>
+
+<div class="fact-box"><span class="fact-label">Try it</span><p>Zoom in through the scales: first you see the large macro pores (transport channels), then meso pores appear within the walls, then micro pores within those. The glowing edges show where the surface area lives — notice how edge density increases at every scale. That's the fractal magic that gives activated carbon its power.</p></div>
+
+<h3>Where You See It</h3>
+<div><span class="nature-tag">Water Filters</span><span class="nature-tag">Gas Masks</span><span class="nature-tag">Supercapacitors</span><span class="nature-tag">Catalysts</span><span class="nature-tag">Aerogels</span><span class="nature-tag">Zeolites</span><span class="nature-tag">MOFs</span><span class="nature-tag">Bone Structure</span></div>`}
+];
+
+// ═══ MODE SWITCHING ═══
+const subs={'2d':'2D Complex Plane','3d':'3D Raymarching','geo':'Geometric Patterns','learn':'Fractals in Nature','eq':'Equation Playground'};
+const helps={'2d':'Drag to pan · Scroll to zoom','3d':'Drag to orbit · Scroll to zoom<br>Shift+Drag to pan','geo':'Drag to pan · Scroll to zoom','learn':'Drag to pan · Scroll to zoom','eq':'Drag to pan · Scroll to zoom'};
+
+document.querySelectorAll('.mode-tab').forEach(tab=>{tab.addEventListener('click',()=>{
+  document.querySelectorAll('.mode-tab').forEach(t=>t.classList.remove('active'));tab.classList.add('active');
+  activeMode=tab.dataset.mode;
+  ['2d','3d','geo','learn','eq'].forEach(m=>{const el=document.getElementById('controls-'+m);if(el)el.classList.toggle('hidden',activeMode!==m);});
+  document.getElementById('learn-info').classList.toggle('hidden',activeMode!=='learn');
+  document.getElementById('title-bar').classList.toggle('hidden',activeMode==='learn');
+  if(activeMode==='learn')updLearnInfo();
+  document.getElementById('subtitle').textContent=subs[activeMode];
+  document.getElementById('help').innerHTML=helps[activeMode];
+  document.getElementById('coord-display').textContent='';
+  needsRedraw=true;updateZ();
+});});
+
+function updLearnInfo(){document.getElementById('learn-info').innerHTML=LC[learn.type].html;}
+
+// ═══ UI WIRING ═══
+function wb(sel,cb){document.querySelectorAll(sel).forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll(sel).forEach(x=>x.classList.remove('active'));b.classList.add('active');cb(b);}));}
+wb('[data-fractal2d]',b=>{f2d.type=+b.dataset.fractal2d;needsRedraw=true;});
+wb('[data-color2d]',b=>{f2d.color=+b.dataset.color2d;needsRedraw=true;});
+wb('[data-fractal3d]',b=>{f3d.type=+b.dataset.fractal3d;f3d.dist=3.5;f3d.panX=0;f3d.panY=0;f3d.target=[0,0,0];updateZ();});
+wb('[data-color3d]',b=>{f3d.color=+b.dataset.color3d;});
+wb('[data-geo]',b=>{geo.type=+b.dataset.geo;needsRedraw=true;});
+wb('[data-colorgeo]',b=>{geo.color=+b.dataset.colorgeo;needsRedraw=true;});
+wb('[data-learn]',b=>{learn.type=+b.dataset.learn;updLearnInfo();needsRedraw=true;});
+wb('[data-colorlearn]',b=>{learn.color=+b.dataset.colorlearn;needsRedraw=true;});
+wb('[data-eqmode]',b=>{eq.mode=+b.dataset.eqmode;needsRedraw=true;updateEqDisplay();});
+wb('[data-coloreq]',b=>{eq.color=+b.dataset.coloreq;needsRedraw=true;});
+
+function sl(id,cb){document.getElementById(id).addEventListener('input',function(){cb(this);needsRedraw=true;});}
+sl('iter2d',e=>{f2d.iter=+e.value;document.getElementById('iter2dVal').textContent=f2d.iter;});
+sl('power2d',e=>{f2d.power=+e.value;document.getElementById('power2dVal').textContent=f2d.power;});
+sl('power3d',e=>{f3d.power=+e.value;document.getElementById('powerVal').textContent=f3d.power;});
+sl('iter3d',e=>{f3d.iter=+e.value;document.getElementById('iterVal').textContent=f3d.iter;});
+sl('detail3d',e=>{f3d.detail=+e.value;document.getElementById('detailVal').textContent=f3d.detail.toFixed(1);});
+sl('symmetry',e=>{geo.sym=+e.value;document.getElementById('symVal').textContent=geo.sym;});
+sl('complexity',e=>{geo.comp=+e.value;document.getElementById('compVal').textContent=geo.comp;});
+sl('eqPower',e=>{eq.power=+e.value;document.getElementById('eqPowerVal').textContent=eq.power.toFixed(1);updateEqDisplay();});
+sl('eqCr',e=>{eq.cr=+e.value;document.getElementById('eqCrVal').textContent=eq.cr.toFixed(2);updateEqDisplay();});
+sl('eqCi',e=>{eq.ci=+e.value;document.getElementById('eqCiVal').textContent=eq.ci.toFixed(2);updateEqDisplay();});
+sl('eqEsc',e=>{eq.esc=+e.value;document.getElementById('eqEscVal').textContent=eq.esc;updateEqDisplay();});
+sl('eqIter',e=>{eq.iter=+e.value;document.getElementById('eqIterVal').textContent=eq.iter;updateEqDisplay();});
+
+function updateEqDisplay(){
+  const n=eq.power;
+  // Main equation
+  let sup;
+  if(n===2) sup='²'; else if(n===3) sup='³'; else if(n===4) sup='⁴';
+  else if(n===Math.floor(n)) sup='^'+n.toFixed(0); else sup='^'+n.toFixed(1);
+  const mainEl=document.querySelector('#eqDisplay .eq-main');
+  mainEl.innerHTML=`z<sub>n+1</sub> = z<sub>n</sub>${sup} + c`;
+  // Detail lines
+  if(eq.mode===0){
+    document.getElementById('eqDetail').innerHTML=`z₀ = <span class="eq-val">0</span>  (start at origin)`;
+    document.getElementById('eqCval').innerHTML=`c = <span class="eq-val">pixel(re, im)</span>  ← varies per pixel`;
+  } else {
+    document.getElementById('eqDetail').innerHTML=`z₀ = <span class="eq-val">pixel(re, im)</span>  ← varies per pixel`;
+    const sign=eq.ci>=0?'+':'';
+    document.getElementById('eqCval').innerHTML=`c = <span class="eq-val">${eq.cr.toFixed(3)} ${sign} ${eq.ci.toFixed(3)}i</span>  ← fixed`;
+  }
+  document.getElementById('eqEscape').innerHTML=`escape: |z| &gt; <span class="eq-val">${eq.esc}</span>  →  color by iteration`;
+  document.getElementById('eqIterInfo').innerHTML=`max <span class="eq-val">${eq.iter}</span> iterations  →  black = bounded`;
+}
+
+document.getElementById('resetBtn2d').addEventListener('click',()=>{f2d.cx=-0.5;f2d.cy=0;f2d.zoom=0.003;needsRedraw=true;updateZ();});
+document.getElementById('resetBtnGeo').addEventListener('click',()=>{geo.cx=0;geo.cy=0;geo.zoom=0.004;needsRedraw=true;updateZ();});
+document.getElementById('resetBtnLearn').addEventListener('click',()=>{learn.cx=0;learn.cy=0;learn.zoom=0.005;needsRedraw=true;updateZ();});
+document.getElementById('resetBtnEq').addEventListener('click',()=>{eq.cx=-0.5;eq.cy=0;eq.zoom=0.003;needsRedraw=true;updateZ();});
+
+// ═══ RENDER ═══
+let lastTime=performance.now(),frameCount=0;
+
+function r2d(){gl.useProgram(p2d);sa(p2d);gl.uniform2f(u2d.u_res,canvas.width,canvas.height);gl.uniform1f(u2d.u_cx,f2d.cx);gl.uniform1f(u2d.u_cy,f2d.cy);gl.uniform1f(u2d.u_zoom,f2d.zoom);gl.uniform1i(u2d.u_type,f2d.type);gl.uniform1i(u2d.u_color,f2d.color);gl.uniform1i(u2d.u_maxIter,f2d.iter);gl.uniform1i(u2d.u_power,f2d.power);gl.uniform1f(u2d.u_juliaR,f2d.juliaR);gl.uniform1f(u2d.u_juliaI,f2d.juliaI);gl.drawArrays(gl.TRIANGLE_STRIP,0,4);}
+
+function r3d(now){const cx=f3d.dist*Math.cos(f3d.phi)*Math.sin(f3d.theta),cy=f3d.dist*Math.sin(f3d.phi),cz=f3d.dist*Math.cos(f3d.phi)*Math.cos(f3d.theta);
+gl.useProgram(p3d);sa(p3d);gl.uniform2f(u3d.u_res,canvas.width,canvas.height);gl.uniform1f(u3d.u_time,now*.001);gl.uniform3f(u3d.u_camPos,cx+f3d.target[0],cy+f3d.target[1],cz+f3d.target[2]);gl.uniform3f(u3d.u_camTarget,f3d.target[0],f3d.target[1],f3d.target[2]);gl.uniform3f(u3d.u_camUp,0,1,0);gl.uniform1i(u3d.u_fractal,f3d.type);gl.uniform1i(u3d.u_color,f3d.color);gl.uniform1f(u3d.u_power,f3d.power);gl.uniform1i(u3d.u_iter,f3d.iter);gl.uniform1f(u3d.u_detail,f3d.detail);gl.uniform1f(u3d.u_camDist,f3d.dist);gl.drawArrays(gl.TRIANGLE_STRIP,0,4);}
+
+function rGeo(){gl.useProgram(pGeo);sa(pGeo);gl.uniform2f(uGeo.u_res,canvas.width,canvas.height);gl.uniform1f(uGeo.u_cx,geo.cx);gl.uniform1f(uGeo.u_cy,geo.cy);gl.uniform1f(uGeo.u_zoom,geo.zoom);gl.uniform1i(uGeo.u_type,geo.type);gl.uniform1i(uGeo.u_color,geo.color);gl.uniform1i(uGeo.u_sym,geo.sym);gl.uniform1i(uGeo.u_comp,geo.comp);gl.drawArrays(gl.TRIANGLE_STRIP,0,4);}
+
+function rLearn(){gl.useProgram(pLearn);sa(pLearn);gl.uniform2f(uLearn.u_res,canvas.width,canvas.height);gl.uniform1f(uLearn.u_cx,learn.cx);gl.uniform1f(uLearn.u_cy,learn.cy);gl.uniform1f(uLearn.u_zoom,learn.zoom);gl.uniform1i(uLearn.u_type,learn.type);gl.uniform1i(uLearn.u_color,learn.color);gl.drawArrays(gl.TRIANGLE_STRIP,0,4);}
+
+function rEq(){gl.useProgram(pEq);sa(pEq);gl.uniform2f(uEq.u_res,canvas.width,canvas.height);gl.uniform1f(uEq.u_cx,eq.cx);gl.uniform1f(uEq.u_cy,eq.cy);gl.uniform1f(uEq.u_zoom,eq.zoom);gl.uniform1i(uEq.u_mode,eq.mode);gl.uniform1i(uEq.u_color,eq.color);gl.uniform1i(uEq.u_maxIter,eq.iter);gl.uniform1f(uEq.u_power,eq.power);gl.uniform1f(uEq.u_cr,eq.cr);gl.uniform1f(uEq.u_ci,eq.ci);gl.uniform1f(uEq.u_esc,eq.esc);gl.drawArrays(gl.TRIANGLE_STRIP,0,4);}
+
+function frame(now){
+  frameCount++;if(now-lastTime>500){document.getElementById('fps').textContent=Math.round(frameCount/((now-lastTime)/1000));frameCount=0;lastTime=now;}
+  if(activeMode==='3d'){r3d(now);}
+  else if(needsRedraw){
+    if(activeMode==='2d')r2d();else if(activeMode==='geo')rGeo();else if(activeMode==='learn')rLearn();else if(activeMode==='eq')rEq();
+    needsRedraw=false;
+  }
+  requestAnimationFrame(frame);
+}
+updateZ();updateEqDisplay();requestAnimationFrame(frame);
+</script>
+</body>
+</html>
